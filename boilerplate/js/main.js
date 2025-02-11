@@ -1,10 +1,18 @@
 // Add all scripts to the JS folder
-var map = L.map('map').setView([44.41154690517817, -89.63139921756608], 8);
 
-var OpenStreetMap_Mapnik = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-	maxZoom: 19,
-	attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-}).addTo(map);
+//Create the map
+function createMap() {
+    var map = L.map('map').setView([44.41154690517817, -89.63139921756608], 8);
+
+    var OpenStreetMap_Mapnik = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+	    maxZoom: 19,
+	    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    //Get data for the map
+    getData(map)
+}
+
 
 function calculatedMinValue(data) {
     //Create an empty array to store all data values
@@ -21,7 +29,6 @@ function calculatedMinValue(data) {
     //Get minimum value for array
     var minValue = Math.min(...allValues);
 
-    console.log(minValue);
     return minValue;
 }
 
@@ -35,12 +42,14 @@ function calcPropRadius(attValue) {
     return radius;
 }
 
-//Step 3: Add circle markers for point features to the map
-function createPropSymbols(data){
-    //Step 4: Determine attribute to symbolize with proportional symbols.  Since I don't have any numerical attributes in my data I am using the longitude value
-    //create marker options
+function pointToLayer(feature, latlng){
+    if (!feature.geometry || !feature.geometry.coordinates) {
+        console.error("Invalid feature geometry:", feature);
+        return null;
+    }
+
+    // Create marker options
     var geojsonMarkerOptions = {
-        radius: 8,
         fillColor: "#ff7800",
         color: "#000",
         weight: 1,
@@ -48,32 +57,48 @@ function createPropSymbols(data){
         fillOpacity: 0.8
     };
 
-    //create a Leaflet GeoJSON layer and add it to the map
+    // Extract longitude safely
+    var longValue = Number(feature.geometry.coordinates[0]);
+
+    if (isNaN(longValue)) {
+        console.warn("Invalid longitude value:", feature.geometry.coordinates);
+        longValue = 1; // Default fallback value
+    }
+
+    // Set the marker radius based on longitude
+    geojsonMarkerOptions.radius = calcPropRadius(longValue);
+
+    // Create circle marker layer
+    var layer = L.circleMarker(latlng, geojsonMarkerOptions);
+
+    // Popup content
+    var popupContent = `
+        <p><b>Facility Name: </b>${feature.properties.FAC_NM}<br>
+        <b>Facility ID: </b>${feature.properties.LOC_ID}<br>
+        <b>Facility Type: </b>${feature.properties.FAC_TY}<br>
+        <b>Facility Ownership: </b>${feature.properties.FAC_OWSP}<br>
+        <b>Facility Use: </b>${feature.properties.FAC_USE}<br>
+        <b>Transmission Region: </b>${feature.properties.TRANS_RGN}<br>
+        <b>More information: </b><a href="${feature.properties.F5010URL}" target="_blank">Link</a></p>
+    `;
+
+    // Bind popup to circle marker
+    layer.bindPopup(popupContent);
+
+    return layer; // ✅ Ensure we return a valid layer
+}
+
+// Function to create symbols
+function createPropSymbols(data, map){
+    
+    // Add the GeoJSON layer
     L.geoJson(data, {
-        onEachFeature: function (feature, layer) {
-            layer.bindPopup('<b>Facility Name: </b>' + feature.properties.FAC_NM + '<br>' +
-                            '<b>Facillity ID: </b>' + feature.properties.LOC_ID + '<br>' +
-                            '<b>Facility Type: </b>' + feature.properties.FAC_TY +'<br>' +
-                            '<b>Facility Ownership: </b>' + feature.properties.FAC_OWSP + '<br>' +
-                            '<b>Facility Use: </b>' + feature.properties.FAC_USE + '<br>' +
-                            '<b>Transmission Region: </b>' + feature.properties.TRANS_RGN + '<br>' +
-                            '<b>More information: </b>' + '<a href='+feature.properties.F5010URL+'>Link' );
-        },
-        pointToLayer: function (feature, latlng) {
-            //Step 5: For each feature, determine its value for the selected attribute
-            var attValue = Number(feature.geometry.coordinates[0]);
-
-            //Step 6: Give each feature's circle marker a radius based on its longitude value
-            geojsonMarkerOptions.radius = calcPropRadius(attValue);
-
-            return L.circleMarker(latlng, geojsonMarkerOptions);
-        }
-
+        pointToLayer: pointToLayer
     }).addTo(map);
-};
+}
 
 //Step 2: Import GeoJSON data
-function getData(){
+function getData(map){
     //load the data
     fetch('data/WiscAirports.geojson')
         .then(function(response){
@@ -83,9 +108,9 @@ function getData(){
             //Calculate minimum data value
             minValue = calculatedMinValue(json);
             //call function to create proportional symbols
-            createPropSymbols(json);
+            createPropSymbols(json, map);
         })
 };
 
-document.addEventListener('DOMContentLoaded',getData);
+document.addEventListener('DOMContentLoaded',createMap);
 
