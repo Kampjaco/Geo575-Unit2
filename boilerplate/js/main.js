@@ -164,8 +164,8 @@ function updatePropSymbols(attribute){
             var popupContent = "<p><b>County:</b> " + props.CTY_NAME + "</p>";
             
             //add formatted attribute to panel content string
-            var year = attribute.split("_")[0];
-            popupContent += "<p><b>Population in " + year + ":</b> " + props[attribute] + " million</p>";
+            var year = attribute.split(" ")[0];
+            popupContent += "<p><b>Population in " + year + ":</b> " + props[attribute]+ "</p>";
             
             //update popup content            
             popup = layer.getPopup();            
@@ -188,9 +188,6 @@ function processData(data) {
             attributes.push(attribute);
         }
     }
-
-    //Check results
-    console.log(attributes);
 
     return attributes;
 }
