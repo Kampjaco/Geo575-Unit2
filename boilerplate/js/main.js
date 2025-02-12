@@ -1,8 +1,8 @@
 // Add all scripts to the JS folder
-
+var map;
 //Create the map
 function createMap() {
-    var map = L.map('map').setView([46.00318583226062, -94.60267026275974], 7);
+    map = L.map('map').setView([46.00318583226062, -94.60267026275974], 7);
 
     var OpenStreetMap_Mapnik = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 	    maxZoom: 19,
@@ -39,17 +39,17 @@ function calculatedMinValue(data) {
 function calcPropRadius(attValue) {
     //Constant factor adjusts symbol sizes evenly
     var minRadius = 3;
-    console.log(minValue);
-    //Flannery Appearance Compensation formula.  Changed the multiplyer to really show the changes in longitude, otherwise it was unnoticable
+
+    //Flannery Appearance Compensation formula
     var radius = 1.0083 * Math.pow(attValue/minValue,0.5715) * minRadius;
 
     return radius;
 }
 
-function pointToLayer(feature, latlng){
+function pointToLayer(feature, latlng, attributes){
 
     //Attribute to symbolize
-    var attribute = "2010 Pop";
+    var attribute = attributes[0];
 
     // Create marker options
     var geojsonMarkerOptions = {
@@ -83,21 +83,23 @@ function pointToLayer(feature, latlng){
 }
 
 // Function to create symbols
-function createPropSymbols(data, map){
+function createPropSymbols(data, map, attributes){
     
     // Add the GeoJSON layer
     L.geoJson(data, {
-        pointToLayer: pointToLayer
+        pointToLayer: function(feature, latlng) {
+            return pointToLayer(feature, latlng, attributes);
+        }
     }).addTo(map);
 }
 
 //Create new sequence controls
-function createSequenceControls() {
+function createSequenceControls(attributes) {
     var slider = "<input class='range-slider' type='range'></input>";
     document.querySelector("#panel").insertAdjacentHTML('beforeend',slider);
 
     //set slider attributes
-    document.querySelector(".range-slider").max = 10;
+    document.querySelector(".range-slider").max = 9;
     document.querySelector(".range-slider").min = 0;
     document.querySelector(".range-slider").value = 0;
     document.querySelector(".range-slider").step = 1;
@@ -109,6 +111,88 @@ function createSequenceControls() {
     //Make the buttons images now
     document.querySelector('#reverse').insertAdjacentHTML('beforeend',"<img src='img/backward.png'>")
     document.querySelector('#forward').insertAdjacentHTML('beforeend',"<img src='img/forward.png'>")
+
+    //Create click listeners for buttons
+    document.querySelectorAll('.step').forEach(function(step){
+        step.addEventListener("click", function(){
+            var index = document.querySelector('.range-slider').value;
+
+            //Step 6: increment or decrement depending on button clicked
+            if (step.id == 'forward'){
+                index++;
+                //Step 7: if past the last attribute, wrap around to first attribute
+                index = index > 9 ? 0 : index;
+            } else if (step.id == 'reverse'){
+                index--;
+                //Step 7: if past the first attribute, wrap around to last attribute
+                index = index < 0 ? 9 : index;
+            };
+
+            //Step 8: update slider
+            document.querySelector('.range-slider').value = index;
+
+            console.log(attributes[index])
+
+            //Step 9: pass new attribute to update symbols
+            updatePropSymbols(attributes[index]);
+        })
+
+        
+    })
+
+    //Step 5: input listener for slider
+    document.querySelector('.range-slider').addEventListener('input', function(){            
+        var index = this.value;
+        
+        //Step 9: pass new attribute to update symbols
+        updatePropSymbols(attributes[index]);
+    });
+}
+
+//Step 10: Resize proportional symbols according to new attribute values
+function updatePropSymbols(attribute){
+    map.eachLayer(function(layer){
+        if (layer.feature && layer.feature.properties[attribute]){
+            //access feature properties
+            var props = layer.feature.properties;
+
+            //update each feature's radius based on new attribute values
+            var radius = calcPropRadius(props[attribute]);
+            layer.setRadius(radius);
+            
+            //add city to popup content string
+            var popupContent = "<p><b>County:</b> " + props.CTY_NAME + "</p>";
+            
+            //add formatted attribute to panel content string
+            var year = attribute.split("_")[0];
+            popupContent += "<p><b>Population in " + year + ":</b> " + props[attribute] + " million</p>";
+            
+            //update popup content            
+            popup = layer.getPopup();            
+            popup.setContent(popupContent).update();
+        };
+    });
+};
+
+//Build array of attributes from the GeoJson
+function processData(data) {
+    var attributes = [];
+
+    //Properties of first feature in dataset
+    var properties = data.features[0].properties;
+
+    //Push each attribute name into attributes array
+    for(var attribute in properties) {
+        //Only take attributes with population values
+        if(attribute.indexOf("Pop") > -1) {
+            attributes.push(attribute);
+        }
+    }
+
+    //Check results
+    console.log(attributes);
+
+    return attributes;
 }
 
 //Step 2: Import GeoJSON data
@@ -119,12 +203,14 @@ function getData(map){
             return response.json();
         })
         .then(function(json){
+            //Create an attributes array
+            var attributes = processData(json);
             //Calculate minimum data value
             minValue = calculatedMinValue(json);
             //call function to create proportional symbols
-            createPropSymbols(json, map);
+            createPropSymbols(json, map, attributes);
             //Function for sequence control
-            createSequenceControls();
+            createSequenceControls(attributes);
         })
 };
 
