@@ -1,6 +1,17 @@
 /*Add CSS styles here*/
-#map {
-    height: 1000px;
+#map {    
+    height: 950px;    
+    width: 80%;
+    display: inline-block;
+}
+
+#panel {    
+    width: 16%;    
+    padding: 20px;
+    display: inline-block;
+    vertical-align: top;
+    text-align: center;
+    line-height: 42px;
 }
 
 .leaflet-popup-content p {
